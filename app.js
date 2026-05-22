@@ -306,7 +306,7 @@ function setupAuthentication() {
 
 function processLogin() {
   const code = ownerPasscodeInput.value.trim();
-  if (code === 'admin123') {
+  if (code === 'pakistan1234@') {
     isAdminMode = true;
     localStorage.setItem('agroshield_admin_mode', 'true');
     updateAuthUI();
