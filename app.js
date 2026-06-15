@@ -88,7 +88,7 @@ const DISEASE_DATABASE = {
     crop: "Maize (Corn)",
     symptoms: "Circular, raised orange-to-golden pustules developing primarily on the upper surfaces of corn leaves. Pustules rupture, releasing dusty orange spores.",
     causes: "Warm temperatures (25-30°C) and high humidity. Wind-borne spores carry the disease across vast crop fields.",
-    remedyId: "prod-6", // Will suggest sea weed to build immunity, or customized
+    remedyId: "prod-6",
     prevention: "1. Use rust-resistant hybrid corn seeds.\n2. Crop rotation with non-cereal crops.\n3. Deep tillage to bury leftover crop residues."
   },
   wheat_rust: {
@@ -202,11 +202,12 @@ window.addEventListener('DOMContentLoaded', () => {
   updateDashboardCounters();
   renderProducts('All', '');
   renderScanHistory();
+  fetchRealWeather();
+  setInterval(fetchRealWeather, 15 * 60 * 1000);
 });
 
 // ================= STORAGE CONTROLS =================
 function loadLocalStorage() {
-  // Load Custom Products
   const savedCustom = localStorage.getItem('agroshield_custom_products');
   if (savedCustom) {
     customProducts = JSON.parse(savedCustom);
@@ -215,7 +216,6 @@ function loadLocalStorage() {
     products = [...DEFAULT_PRODUCTS];
   }
 
-  // Load Scan History
   const savedHistory = localStorage.getItem('agroshield_scan_history');
   if (savedHistory) {
     scanHistory = JSON.parse(savedHistory);
@@ -223,7 +223,6 @@ function loadLocalStorage() {
     scanHistory = [];
   }
 
-  // Load Auth State
   const savedAuth = localStorage.getItem('agroshield_admin_mode');
   if (savedAuth === 'true') {
     isAdminMode = true;
@@ -239,7 +238,7 @@ function saveCustomProduct(productObj) {
 }
 
 function saveScanHistory(scanRecord) {
-  scanHistory.unshift(scanRecord); // Add to beginning of array
+  scanHistory.unshift(scanRecord);
   localStorage.setItem('agroshield_scan_history', JSON.stringify(scanHistory));
   updateDashboardCounters();
   renderScanHistory();
@@ -257,7 +256,6 @@ function setupNavigation() {
 }
 
 function switchTab(tabName) {
-  // Handle sidebar active classes
   navItems.forEach(item => {
     if (item.getAttribute('data-tab') === tabName) {
       item.classList.add('active');
@@ -266,7 +264,6 @@ function switchTab(tabName) {
     }
   });
 
-  // Toggle page view
   pageSections.forEach(section => {
     if (section.id === `${tabName}-section`) {
       section.classList.add('active');
@@ -275,12 +272,10 @@ function switchTab(tabName) {
     }
   });
 
-  // Turn off webcam if navigating away from Scanner
   if (tabName !== 'scanner') {
     stopWebcam();
   }
 
-  // Auto-scroll to top
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -288,7 +283,6 @@ function switchTab(tabName) {
 function setupAuthentication() {
   ownerPortalBtn.addEventListener('click', () => {
     if (isAdminMode) {
-      // Toggle off admin mode
       logoutAdmin();
     } else {
       openModal('owner-login-modal');
@@ -325,7 +319,6 @@ function logoutAdmin() {
   localStorage.setItem('agroshield_admin_mode', 'false');
   updateAuthUI();
   showToast('Exited Administrative Mode. Switched to Farmer Mode.', 'info');
-  // If user was on Add Product page, redirect to Dashboard
   const activeTab = document.querySelector('.nav-item.active').getAttribute('data-tab');
   if (activeTab === 'add-product') {
     switchTab('dashboard');
@@ -372,7 +365,6 @@ function showToast(message, type = 'success') {
 
   toastsContainer.appendChild(toast);
 
-  // Auto remove toast after 4s
   setTimeout(() => {
     if (toast.parentElement) {
       toast.style.animation = 'fadeIn 0.3s ease-out reverse';
@@ -384,53 +376,35 @@ function showToast(message, type = 'success') {
 // ================= MODAL OPEN/CLOSE =================
 function openModal(modalId) {
   const modal = document.getElementById(modalId);
-  if (modal) {
-    modal.style.display = 'flex';
-  }
+  if (modal) modal.style.display = 'flex';
 }
 
 function closeModal(modalId) {
   const modal = document.getElementById(modalId);
-  if (modal) {
-    modal.style.display = 'none';
-  }
+  if (modal) modal.style.display = 'none';
 }
 
 // ================= CROP SCANNER CONTROLLERS =================
 function setupScanner() {
-  // Sample card selection clicks
   sampleLeafCards.forEach(card => {
     card.addEventListener('click', () => {
-      // Toggle active states
       sampleLeafCards.forEach(c => c.classList.remove('active'));
       card.classList.add('active');
-
       selectedSampleLeaf = card.getAttribute('data-sample');
-
-      // Stop camera stream if active to show preview thumbnail
       stopWebcam();
-
-      // Show sample preview in scanner window
       cameraFallbackUi.style.display = 'none';
       cameraStream.style.display = 'none';
       uploadedImagePreview.style.display = 'block';
-
-      // Set thumbnail display background color/gradients to mock leaf photo
       const thumbnailStyle = card.querySelector('.sample-leaf-thumbnail').style.background;
       uploadedImagePreview.src = '';
       uploadedImagePreview.style.background = thumbnailStyle;
-
-      // Enable scan button
       startScanBtn.disabled = false;
-
-      // Output logs
       clearConsoleLogs();
       addConsoleLog(`[SYSTEM] Loaded sample crop: ${DISEASE_DATABASE[selectedSampleLeaf].crop} leaf.`, 'info');
       addConsoleLog(`[SYSTEM] Ready for leaf analysis. Click "Scan Plant Leaf" to begin.`, 'info');
     });
   });
 
-  // Toggle Camera Click
   toggleCameraBtn.addEventListener('click', () => {
     if (webcamStream) {
       stopWebcam();
@@ -439,18 +413,12 @@ function setupScanner() {
     }
   });
 
-  // File Upload Handling
   imageUploadInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
-      // De-select sample leaves
       sampleLeafCards.forEach(c => c.classList.remove('active'));
       selectedSampleLeaf = null;
-
-      // Stop webcam
       stopWebcam();
-
-      // Read image
       const reader = new FileReader();
       reader.onload = (event) => {
         cameraFallbackUi.style.display = 'none';
@@ -458,9 +426,7 @@ function setupScanner() {
         uploadedImagePreview.style.display = 'block';
         uploadedImagePreview.src = event.target.result;
         uploadedImagePreview.style.background = 'none';
-
         startScanBtn.disabled = false;
-
         clearConsoleLogs();
         addConsoleLog(`[SYSTEM] Local image uploaded successfully (${(file.size/1024).toFixed(1)} KB).`, 'success');
         addConsoleLog(`[SYSTEM] Image resolution parsed. Ready for diagnosis.`, 'info');
@@ -469,14 +435,11 @@ function setupScanner() {
     }
   });
 
-  // Start Scanner Trigger
   startScanBtn.addEventListener('click', executeCropDiagnosis);
 }
 
-// Start Webcam Stream
 async function startWebcam() {
   try {
-    // Clear selections
     sampleLeafCards.forEach(c => c.classList.remove('active'));
     selectedSampleLeaf = null;
     uploadedImagePreview.style.display = 'none';
@@ -496,9 +459,7 @@ async function startWebcam() {
     `;
     toggleCameraBtn.classList.remove('btn-secondary');
     toggleCameraBtn.classList.add('btn-danger');
-
     startScanBtn.disabled = false;
-
     clearConsoleLogs();
     addConsoleLog('[SYSTEM] Camera sensor connected. Live crop stream feeding...', 'success');
   } catch (err) {
@@ -507,7 +468,6 @@ async function startWebcam() {
   }
 }
 
-// Stop Webcam Stream
 function stopWebcam() {
   if (webcamStream) {
     webcamStream.getTracks().forEach(track => track.stop());
@@ -515,8 +475,7 @@ function stopWebcam() {
   }
   cameraStream.srcObject = null;
   cameraStream.style.display = 'none';
-  
-  // Revert buttons
+
   toggleCameraBtn.innerHTML = `
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/><path d="M5 9h.01"/></svg>
     Start Webcam
@@ -524,14 +483,12 @@ function stopWebcam() {
   toggleCameraBtn.classList.remove('btn-danger');
   toggleCameraBtn.classList.add('btn-secondary');
 
-  // If no sample leaf and no upload image, disable scan button
   if (!selectedSampleLeaf && !uploadedImagePreview.src) {
     startScanBtn.disabled = true;
     cameraFallbackUi.style.display = 'flex';
   }
 }
 
-// Console Logs Utility
 function clearConsoleLogs() {
   consoleLogsList.innerHTML = '';
 }
@@ -539,29 +496,21 @@ function clearConsoleLogs() {
 function addConsoleLog(message, type = 'info') {
   const line = document.createElement('div');
   line.className = `console-log-line ${type === 'success' ? 'text-success' : type === 'error' ? 'text-danger' : ''}`;
-  
-  // Format current timestamp
   const now = new Date();
   const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}.${(now.getMilliseconds()/10).toFixed(0).toString().padStart(2, '0')}`;
-  
   line.innerText = `[${timeStr}] ${message}`;
   consoleLogsList.appendChild(line);
   consoleLogsList.scrollTop = consoleLogsList.scrollHeight;
 }
 
-// Crop Scan Simulation
 function executeCropDiagnosis() {
-  // Update state to scanning
   startScanBtn.disabled = true;
   toggleCameraBtn.disabled = true;
   imageUploadInput.disabled = true;
   consoleStatusBadge.innerText = 'PROCESSING';
   consoleStatusBadge.style.color = 'var(--warning)';
-
-  // Visual scan lines
   scannerLaserLine.style.display = 'block';
   scannerOverlayScanning.style.display = 'block';
-
   clearConsoleLogs();
   addConsoleLog('[PROCESS] Commencing diagnostic analysis sequence...', 'info');
 
@@ -579,9 +528,7 @@ function executeCropDiagnosis() {
     }, step.delay);
   });
 
-  // Complete Scan after 3 seconds
   setTimeout(() => {
-    // Reset scanner visuals
     scannerLaserLine.style.display = 'none';
     scannerOverlayScanning.style.display = 'none';
     startScanBtn.disabled = false;
@@ -590,13 +537,10 @@ function executeCropDiagnosis() {
     consoleStatusBadge.innerText = 'COMPLETED';
     consoleStatusBadge.style.color = 'var(--primary)';
 
-    // Determine target disease result
     let diagnosisResultKey = '';
-    
     if (selectedSampleLeaf) {
       diagnosisResultKey = selectedSampleLeaf;
     } else {
-      // If camera capture or custom upload, randomize from DB (except healthy)
       const keys = Object.keys(DISEASE_DATABASE).filter(k => k !== 'healthy_crop');
       diagnosisResultKey = keys[Math.floor(Math.random() * keys.length)];
     }
@@ -604,7 +548,6 @@ function executeCropDiagnosis() {
     const diagnosis = DISEASE_DATABASE[diagnosisResultKey];
     addConsoleLog(`[RESULT] Disease Detected: ${diagnosis.name} (${diagnosis.pathogen})`, 'success');
 
-    // Create log record
     const record = {
       id: "scan-" + Date.now(),
       timestamp: new Date().toLocaleString(),
@@ -617,24 +560,19 @@ function executeCropDiagnosis() {
 
     saveScanHistory(record);
     showToast(`Diagnosis success: ${diagnosis.name} identified.`, 'success');
-
-    // Render report modal
     openDiagnosisReport(diagnosisResultKey);
-
   }, 3000);
 }
 
-// Open Diagnosis Report Modal
 function openDiagnosisReport(dbKey) {
   const d = DISEASE_DATABASE[dbKey];
   const recommendedProduct = products.find(p => p.id === d.remedyId) || products[0];
-
   const severityClass = d.severity.toLowerCase();
 
   diagnosisModalBody.innerHTML = `
     <div class="diagnosis-hero-box ${dbKey === 'healthy_crop' ? 'healthy' : ''}">
       <div class="diagnosis-hero-icon">
-        ${dbKey === 'healthy_crop' ? 
+        ${dbKey === 'healthy_crop' ?
           `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>` :
           `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`
         }
@@ -645,7 +583,6 @@ function openDiagnosisReport(dbKey) {
         <span class="diagnosis-value-name">${d.name}</span>
       </div>
     </div>
-
     <div class="diagnosis-details-sections">
       <div class="diagnosis-block-item">
         <span class="diagnosis-block-title">Pathogen / Scientific Name</span>
@@ -668,7 +605,6 @@ function openDiagnosisReport(dbKey) {
         <span class="diagnosis-block-text" style="white-space: pre-line;">${d.prevention}</span>
       </div>
     </div>
-
     <div class="diagnosis-block-item" style="margin-top: 0.5rem;">
       <span class="diagnosis-block-title">Suggested Crop Medicine Treatment</span>
       <div class="diagnosis-remedy-card">
@@ -689,14 +625,12 @@ function openDiagnosisReport(dbKey) {
   openModal('diagnosis-modal');
 }
 
-// Open disease details directly from Crop Library click
 window.showDiseaseFromLibrary = function(dbKey) {
   openDiagnosisReport(dbKey);
 };
 
 // ================= REMEDY SHOP SYSTEM =================
 function setupRemedyShop() {
-  // Free text search typing
   shopSearchInput.addEventListener('input', () => {
     const query = shopSearchInput.value.toLowerCase().trim();
     const activePill = document.querySelector('.filter-pill.active');
@@ -704,7 +638,6 @@ function setupRemedyShop() {
     renderProducts(category, query);
   });
 
-  // Filter Pill clicks
   const pills = filterPillsGroup.querySelectorAll('.filter-pill');
   pills.forEach(pill => {
     pill.addEventListener('click', () => {
@@ -719,23 +652,19 @@ function setupRemedyShop() {
 
 function renderProducts(category, searchQuery) {
   productsCardsGrid.innerHTML = '';
-  
   const filtered = products.filter(p => {
     const matchesCategory = (category === 'All' || p.category === category);
-    
-    const matchesSearch = !searchQuery || 
+    const matchesSearch = !searchQuery ||
       p.name.toLowerCase().includes(searchQuery) ||
       p.description.toLowerCase().includes(searchQuery) ||
       p.compatibleCrop.toLowerCase().includes(searchQuery) ||
       p.targetDisease.toLowerCase().includes(searchQuery);
-
     return matchesCategory && matchesSearch;
   });
 
   if (filtered.length === 0) {
     productsCardsGrid.innerHTML = `
       <div style="grid-column: 1/-1; text-align: center; padding: 4rem 1rem; color: var(--text-muted);">
-        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 0.5rem;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <p>No agricultural remedies match your filters.</p>
       </div>
     `;
@@ -745,8 +674,6 @@ function renderProducts(category, searchQuery) {
   filtered.forEach(p => {
     const card = document.createElement('div');
     card.className = 'glass-card product-card';
-    
-    // Choose styling based on category
     let colorGradient = 'linear-gradient(135deg, #065f46, #06b6d4)';
     if (p.category === 'Insecticide') colorGradient = 'linear-gradient(135deg, #1e3a8a, #3b82f6)';
     if (p.category === 'Bio-Pesticide') colorGradient = 'linear-gradient(135deg, #78350f, #fbbf24)';
@@ -764,12 +691,8 @@ function renderProducts(category, searchQuery) {
         </div>
         <p class="product-desc-para">${p.description}</p>
         <div class="product-badges-row">
-          <span class="product-target-badge crop">
-            Crops: ${p.compatibleCrop}
-          </span>
-          <span class="product-target-badge">
-            Targets: ${p.targetDisease}
-          </span>
+          <span class="product-target-badge crop">Crops: ${p.compatibleCrop}</span>
+          <span class="product-target-badge">Targets: ${p.targetDisease}</span>
         </div>
         <div class="product-actions-footer">
           <button class="btn btn-secondary btn-sm" onclick="viewProductDetails('${p.id}')">Info Details</button>
@@ -777,35 +700,28 @@ function renderProducts(category, searchQuery) {
         </div>
       </div>
     `;
-
     productsCardsGrid.appendChild(card);
   });
 }
 
-// Purchase click handle
 window.purchaseProduct = function(name) {
   showToast(`Sample order for ${name} initiated! Checking local stock.`, 'info');
 };
 
-// View Product Details Modal
 window.viewProductDetails = function(prodId) {
   const p = products.find(item => item.id === prodId);
   if (!p) return;
-
   let colorGradient = 'linear-gradient(135deg, #065f46, #06b6d4)';
   if (p.category === 'Insecticide') colorGradient = 'linear-gradient(135deg, #1e3a8a, #3b82f6)';
   if (p.category === 'Bio-Pesticide') colorGradient = 'linear-gradient(135deg, #78350f, #fbbf24)';
   if (p.category === 'Fertilizer') colorGradient = 'linear-gradient(135deg, #5b21b6, #8b5cf6)';
 
   productModalBody.innerHTML = `
-    <div class="product-detail-img-box" style="background: ${colorGradient}; display:flex; align-items:center; justify-content:center; color:#fff; font-size:6rem;">
-      🌿
-    </div>
+    <div class="product-detail-img-box" style="background: ${colorGradient}; display:flex; align-items:center; justify-content:center; color:#fff; font-size:6rem;">🌿</div>
     <div class="product-detail-info-block">
       <span class="product-detail-category-badge">${p.category}</span>
       <h3 class="product-detail-title-val">${p.name}</h3>
       <span class="product-detail-price-val">$${p.price}</span>
-      
       <div class="product-meta-row">
         <div class="product-meta-item-val">
           <span class="product-meta-item-lbl">Crops:</span>
@@ -820,30 +736,24 @@ window.viewProductDetails = function(prodId) {
           <span class="product-meta-item-desc" style="color:var(--warning);">${p.dosage}</span>
         </div>
       </div>
-      
       <p class="product-detail-desc-val">${p.description}</p>
-      
       <div style="margin-top: auto; display:flex; gap: 1rem;">
         <button class="btn btn-secondary" onclick="closeModal('product-modal')">Close Info</button>
         <button class="btn btn-primary" onclick="closeModal('product-modal'); purchaseProduct('${p.name}')">Purchase Sample</button>
       </div>
     </div>
   `;
-
   openModal('product-modal');
 };
 
-// ================= ADD REMEDY PRODUCT (OWNER ONLY) =================
+// ================= ADD REMEDY PRODUCT =================
 function setupAddProduct() {
   addProductForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    
-    // Auth guard
     if (!isAdminMode) {
       showToast('Admin Mode is inactive. Please authenticate as Store Owner.', 'error');
       return;
     }
-
     const name = document.getElementById('prod-name').value.trim();
     const category = document.getElementById('prod-category').value;
     const price = parseFloat(document.getElementById('prod-price').value.trim()).toFixed(2);
@@ -859,46 +769,33 @@ function setupAddProduct() {
 
     const newProd = {
       id: "prod-" + Date.now(),
-      name: name,
-      category: category,
-      price: price,
+      name, category, price,
       compatibleCrop: crop,
       targetDisease: disease,
-      dosage: dosage,
-      description: desc,
+      dosage, description: desc,
       imageUrl: ""
     };
 
     saveCustomProduct(newProd);
     showToast(`New remedy "${name}" successfully listed in catalog!`, 'success');
-    
-    // Clear form
     addProductForm.reset();
-
-    // Re-render shop and route back to shop
     renderProducts('All', '');
     switchTab('shop');
   });
 }
 
-// ================= SCAN HISTORY RENDERING =================
+// ================= SCAN HISTORY =================
 function renderScanHistory() {
   historyLogsTbody.innerHTML = '';
-  
   if (scanHistory.length === 0) {
-    historyLogsTbody.innerHTML = '';
     historyEmptyState.style.display = 'block';
     return;
   }
-
   historyEmptyState.style.display = 'none';
-
   scanHistory.forEach(record => {
     const tr = document.createElement('tr');
     tr.className = 'history-row';
-
     const severityClass = record.severity.toLowerCase();
-
     tr.innerHTML = `
       <td style="color: var(--text-muted); font-size: 0.8rem;">${record.timestamp}</td>
       <td style="font-weight: 600; color:#fff;">${record.crop}</td>
@@ -920,36 +817,29 @@ function renderScanHistory() {
 function updateDashboardCounters() {
   dashboardScanCount.innerText = scanHistory.length;
   dashboardProductCount.innerText = products.length;
-  
-  // Calculate active diseases (severity Medium or High in history)
   const criticalCount = scanHistory.filter(r => (r.severity === 'Medium' || r.severity === 'High') && r.dbKey !== 'healthy_crop').length;
   dashboardCriticalCount.innerText = criticalCount;
 }
 
-// ================= CONSULTATION FORM HANDLER =================
+// ================= CONSULTATION FORM =================
 function setupConsultationForm() {
   const consultForm = document.getElementById('consultation-form');
   if (!consultForm) return;
-
   consultForm.addEventListener('submit', (e) => {
     e.preventDefault();
-
     const name = document.getElementById('consult-name').value.trim();
     const phone = document.getElementById('consult-phone').value.trim();
     const msg = document.getElementById('consult-msg').value.trim();
-
     if (!name || !phone || !msg) {
       showToast('Please fill out all consultation fields.', 'error');
       return;
     }
-
-    // Success response
     showToast(`Consultation request submitted! Our crop care specialist will contact you at ${phone} shortly.`, 'success');
     consultForm.reset();
   });
 }
 
-// ================= CONTACT FORM HANDLER =================
+// ================= CONTACT FORM =================
 (function setupContactForm() {
   window.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('contact-form');
@@ -964,7 +854,6 @@ function setupConsultationForm() {
         showToast('Please fill out all fields.', 'error');
         return;
       }
-      // Save message to localStorage
       const messages = JSON.parse(localStorage.getItem('agroshield_customer_messages') || '[]');
       messages.unshift({
         id: 'msg-' + Date.now(),
@@ -975,7 +864,6 @@ function setupConsultationForm() {
       localStorage.setItem('agroshield_customer_messages', JSON.stringify(messages));
       showToast(`Message received, ${name}! We will contact you shortly.`, 'success');
       form.reset();
-      // Update admin panel if open
       renderAdminMessages();
     });
   });
@@ -986,7 +874,6 @@ window.toggleFaq = function(el) {
   const answer = el.querySelector('.faq-answer');
   const arrow = el.querySelector('.faq-arrow');
   const isOpen = el.classList.contains('open');
-  // Close all
   document.querySelectorAll('.faq-item.open').forEach(item => {
     item.classList.remove('open');
     item.querySelector('.faq-answer').style.maxHeight = '0';
@@ -999,7 +886,7 @@ window.toggleFaq = function(el) {
   }
 };
 
-// ================= ADMIN PANEL LOGIC =================
+// ================= ADMIN PANEL =================
 function renderAdminMedicineTable() {
   const tbody = document.getElementById('admin-medicine-tbody');
   if (!tbody) return;
@@ -1012,7 +899,7 @@ function renderAdminMedicineTable() {
       <td style="color:var(--primary);">$${p.price}</td>
       <td style="font-size:0.8rem; color:var(--text-muted);">${p.compatibleCrop}</td>
       <td>
-        ${p.id.startsWith('prod-1') || ['prod-1','prod-2','prod-3','prod-4','prod-5','prod-6'].includes(p.id) ? 
+        ${['prod-1','prod-2','prod-3','prod-4','prod-5','prod-6'].includes(p.id) ?
           '<span style="font-size:0.75rem; color:var(--text-muted);">Default</span>' :
           `<button class="btn-history-view" style="color:var(--danger);" onclick="adminDeleteProduct('${p.id}')">Remove</button>`
         }
@@ -1058,7 +945,6 @@ window.adminDeleteProduct = function(prodId) {
   showToast('Medicine removed from catalog.', 'info');
 };
 
-// Patch switchTab to refresh admin panel on entry
 const _originalSwitchTab = switchTab;
 window.switchTab = function(tabName) {
   _originalSwitchTab(tabName);
@@ -1068,7 +954,6 @@ window.switchTab = function(tabName) {
   }
 };
 
-// Patch updateAuthUI to also show admin-panel nav item
 const _originalUpdateAuthUI = updateAuthUI;
 window.updateAuthUI = function() {
   _originalUpdateAuthUI();
@@ -1076,191 +961,8 @@ window.updateAuthUI = function() {
   if (navAdminPanel) {
     navAdminPanel.style.display = isAdminMode ? 'block' : 'none';
   }
-};// ================= REAL-TIME WEATHER SYSTEM =================
-const WEATHER_API_KEY = '35f430397daefbc88fde798f645f984c';
+};
 
-async function fetchRealWeather() {
-  // Dashboard weather elements
-  const tempEl = document.querySelector('.weather-temp-display') || document.querySelector('.weather-temperature');
-  const descEl = document.querySelector('.weather-condition-desc') || document.querySelector('.weather-description');
-  const humidityEl = document.querySelector('.weather-humidity-val') || document.querySelector('[data-weather="humidity"]');
-  const windEl = document.querySelector('.weather-wind-val') || document.querySelector('[data-weather="wind"]');
-  const precipEl = document.querySelector('.weather-precip-val') || document.querySelector('[data-weather="precip"]');
-  const locationEl = document.querySelector('.weather-location-badge') || document.querySelector('.location-badge');
-  const soilEl = document.querySelector('.weather-soil-val') || document.querySelector('[data-weather="soil"]');
-  const warningEl = document.querySelector('.weather-alert-box') || document.querySelector('.weather-warning');
-
-  // Step 1: Get user GPS location
-  if (!navigator.geolocation) {
-    console.warn('[AgroShield] Geolocation not supported.');
-    return;
-  }
-
-  navigator.geolocation.getCurrentPosition(
-    async (position) => {
-      const lat = position.coords.latitude;
-      const lon = position.coords.longitude;
-
-      try {
-        // Step 2: Fetch weather from OpenWeatherMap
-        const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric`;
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (data.cod !== 200) {
-          console.error('[AgroShield] Weather API Error:', data.message);
-          return;
-        }
-
-        // Step 3: Extract weather data
-        const temp = Math.round(data.main.temp);
-        const humidity = data.main.humidity;
-        const windSpeed = (data.wind.speed * 3.6).toFixed(1); // m/s to km/h
-        const weatherMain = data.weather[0].main;
-        const weatherDesc = data.weather[0].description;
-        const cityName = data.name;
-        const country = data.sys.country;
-
-        // Estimate soil moisture from humidity (simple model)
-        const soilMoisture = Math.min(100, Math.round(humidity * 0.6 + 5));
-
-        // Estimate precipitation chance from weather condition
-        let precipChance = 5;
-        if (weatherMain === 'Rain') precipChance = 85;
-        else if (weatherMain === 'Drizzle') precipChance = 60;
-        else if (weatherMain === 'Clouds') precipChance = 30;
-        else if (weatherMain === 'Thunderstorm') precipChance = 95;
-        else if (weatherMain === 'Snow') precipChance = 70;
-
-        // Format condition description
-        const conditionText = formatWeatherCondition(weatherMain, weatherDesc, humidity, temp);
-
-        // Step 4: Update UI elements
-        if (tempEl) tempEl.textContent = `${temp}°C`;
-        if (descEl) descEl.textContent = conditionText;
-        if (humidityEl) humidityEl.textContent = `${humidity}%`;
-        if (windEl) windEl.textContent = `${windSpeed} km/h`;
-        if (precipEl) precipEl.textContent = `${precipChance}%`;
-        if (locationEl) locationEl.textContent = `${cityName}, ${country}`;
-        if (soilEl) soilEl.textContent = `${soilMoisture}%`;
-
-        // Step 5: Update weather warning banner
-        updateWeatherWarning(warningEl, humidity, temp, weatherMain, cityName);
-
-        console.log(`[AgroShield] Weather updated: ${temp}°C, ${conditionText} — ${cityName}, ${country}`);
-
-      } catch (err) {
-        console.error('[AgroShield] Failed to fetch weather:', err);
-      }
-    },
-    (error) => {
-      console.warn('[AgroShield] Location access denied. Using IP-based fallback...');
-      fetchWeatherByIP();
-    },
-    { timeout: 10000 }
-  );
-}
-
-// Fallback: Fetch weather by IP (no GPS needed)
-async function fetchWeatherByIP() {
-  try {
-    // Get approximate location from IP
-    const ipRes = await fetch('https://ipapi.co/json/');
-    const ipData = await ipRes.json();
-
-    const lat = ipData.latitude;
-    const lon = ipData.longitude;
-
-    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric`;
-    const response = await fetch(url);
-    const data = await response.json();
-
-    if (data.cod !== 200) return;
-
-    const temp = Math.round(data.main.temp);
-    const humidity = data.main.humidity;
-    const windSpeed = (data.wind.speed * 3.6).toFixed(1);
-    const weatherMain = data.weather[0].main;
-    const weatherDesc = data.weather[0].description;
-    const cityName = data.name;
-    const country = data.sys.country;
-    const soilMoisture = Math.min(100, Math.round(humidity * 0.6 + 5));
-
-    let precipChance = 5;
-    if (weatherMain === 'Rain') precipChance = 85;
-    else if (weatherMain === 'Drizzle') precipChance = 60;
-    else if (weatherMain === 'Clouds') precipChance = 30;
-    else if (weatherMain === 'Thunderstorm') precipChance = 95;
-
-    const conditionText = formatWeatherCondition(weatherMain, weatherDesc, humidity, temp);
-
-    const tempEl = document.querySelector('.weather-temp-display') || document.querySelector('.weather-temperature');
-    const descEl = document.querySelector('.weather-condition-desc') || document.querySelector('.weather-description');
-    const humidityEl = document.querySelector('.weather-humidity-val') || document.querySelector('[data-weather="humidity"]');
-    const windEl = document.querySelector('.weather-wind-val') || document.querySelector('[data-weather="wind"]');
-    const precipEl = document.querySelector('.weather-precip-val') || document.querySelector('[data-weather="precip"]');
-    const locationEl = document.querySelector('.weather-location-badge') || document.querySelector('.location-badge');
-    const soilEl = document.querySelector('.weather-soil-val') || document.querySelector('[data-weather="soil"]');
-    const warningEl = document.querySelector('.weather-alert-box') || document.querySelector('.weather-warning');
-
-    if (tempEl) tempEl.textContent = `${temp}°C`;
-    if (descEl) descEl.textContent = conditionText;
-    if (humidityEl) humidityEl.textContent = `${humidity}%`;
-    if (windEl) windEl.textContent = `${windSpeed} km/h`;
-    if (precipEl) precipEl.textContent = `${precipChance}%`;
-    if (locationEl) locationEl.textContent = `${cityName}, ${country}`;
-    if (soilEl) soilEl.textContent = `${soilMoisture}%`;
-
-    updateWeatherWarning(warningEl, humidity, temp, weatherMain, cityName);
-
-    console.log(`[AgroShield] Weather (IP fallback): ${temp}°C — ${cityName}, ${country}`);
-
-  } catch (err) {
-    console.error('[AgroShield] IP weather fallback failed:', err);
-  }
-}
-
-function formatWeatherCondition(main, desc, humidity, temp) {
-  if (main === 'Clear' && humidity > 60) return 'Sunny & Humid';
-  if (main === 'Clear') return 'Clear & Sunny';
-  if (main === 'Clouds' && humidity > 70) return 'Cloudy & Humid';
-  if (main === 'Clouds') return 'Partly Cloudy';
-  if (main === 'Rain') return 'Rainy';
-  if (main === 'Drizzle') return 'Light Drizzle';
-  if (main === 'Thunderstorm') return 'Thunderstorm';
-  if (main === 'Snow') return 'Snowfall';
-  if (main === 'Mist' || main === 'Fog') return 'Foggy & Misty';
-  if (main === 'Haze') return 'Hazy';
-  return desc.charAt(0).toUpperCase() + desc.slice(1);
-}
-
-function updateWeatherWarning(warningEl, humidity, temp, weatherMain, city) {
-  if (!warningEl) return;
-
-  let warningText = '';
-
-  if (humidity > 80 && (weatherMain === 'Rain' || weatherMain === 'Clouds')) {
-    warningText = `⚠️ <strong>High Humidity Warning:</strong> Conditions in <strong>${city}</strong> are highly favorable for fungal pathogens. Keep a close eye on crops for signs of <strong>Late Blight</strong> and avoid evening overhead irrigation.`;
-  } else if (temp > 38) {
-    warningText = `🌡️ <strong>Heat Stress Alert:</strong> Extreme temperatures detected in <strong>${city}</strong>. Irrigate crops early morning and consider shade netting for sensitive crops.`;
-  } else if (weatherMain === 'Thunderstorm') {
-    warningText = `⛈️ <strong>Storm Warning:</strong> Thunderstorm conditions in <strong>${city}</strong>. Postpone spraying activities and secure farm equipment.`;
-  } else if (humidity > 70) {
-    warningText = `💧 <strong>Moderate Humidity Notice:</strong> Humidity levels in <strong>${city}</strong> may increase disease risk. Monitor crops regularly.`;
-  } else {
-    warningText = `✅ <strong>Favorable Conditions:</strong> Current weather in <strong>${city}</strong> is suitable for normal farming activities.`;
-  }
-
-  warningEl.innerHTML = warningText;
-}
-
-// ================= AUTO-REFRESH WEATHER =================
-// Fetch weather when page loads
-window.addEventListener('DOMContentLoaded', () => {
-  fetchRealWeather();
-  // Refresh every 15 minutes
-  setInterval(fetchRealWeather, 15 * 60 * 1000);
-});
 // ================= REAL-TIME WEATHER SYSTEM =================
 const WEATHER_API_KEY = '35f430397daefbc88fde798f645f984c';
 
@@ -1269,16 +971,11 @@ async function fetchRealWeather() {
     fetchWeatherByIP();
     return;
   }
-
   navigator.geolocation.getCurrentPosition(
     async (position) => {
-      const lat = position.coords.latitude;
-      const lon = position.coords.longitude;
-      await loadWeatherData(lat, lon);
+      await loadWeatherData(position.coords.latitude, position.coords.longitude);
     },
-    () => {
-      fetchWeatherByIP();
-    },
+    () => { fetchWeatherByIP(); },
     { timeout: 8000 }
   );
 }
@@ -1298,7 +995,6 @@ async function loadWeatherData(lat, lon) {
     const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric`;
     const response = await fetch(url);
     const data = await response.json();
-
     if (data.cod !== 200) return;
 
     const temp        = Math.round(data.main.temp);
@@ -1318,29 +1014,33 @@ async function loadWeatherData(lat, lon) {
 
     const conditionText = formatCondition(weatherMain, humidity);
 
+    // Temperature
     const tempEl = document.querySelector('.weather-temp-value');
     if (tempEl) tempEl.textContent = `${temp}°C`;
 
+    // Condition
     const descEl = document.querySelector('.weather-desc');
     if (descEl) descEl.textContent = conditionText;
 
-    const locEl = document.querySelector('.weather-location');
+    // Location - ONLY weather widget, not about page
+    const locEl = document.querySelector('.weather-widget .weather-location');
     if (locEl) locEl.textContent = `${cityName}, ${country}`;
 
-    const detailValues = document.querySelectorAll('.weather-detail-value');
+    // Detail values - only inside weather widget
+    const detailValues = document.querySelectorAll('.weather-widget .weather-detail-value');
     if (detailValues[0]) detailValues[0].textContent = `${humidity}%`;
     if (detailValues[1]) detailValues[1].textContent = `${soilMoist}%`;
     if (detailValues[2]) detailValues[2].textContent = `${windKmh} km/h`;
     if (detailValues[3]) detailValues[3].textContent = `${precipChance}%`;
 
+    // Warning box
     const alertBox = document.getElementById('weather-alert-box');
     if (alertBox) {
       const advText = alertBox.querySelector('.weather-advice-text');
-      if (advText) {
-        advText.innerHTML = buildWarningText(humidity, temp, weatherMain, cityName);
-      }
+      if (advText) advText.innerHTML = buildWarningText(humidity, temp, weatherMain, cityName);
     }
 
+    console.log(`[AgroShield] Weather loaded: ${temp}°C, ${conditionText} — ${cityName}, ${country}`);
   } catch (err) {
     console.error('[AgroShield] loadWeatherData error:', err);
   }
@@ -1373,8 +1073,3 @@ function buildWarningText(humidity, temp, weatherMain, city) {
   }
   return `<strong>Favorable Conditions:</strong> Weather in <strong>${city}</strong> is suitable for normal farming activities.`;
 }
-
-window.addEventListener('DOMContentLoaded', () => {
-  fetchRealWeather();
-  setInterval(fetchRealWeather, 15 * 60 * 1000);
-});
