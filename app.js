@@ -1076,4 +1076,188 @@ window.updateAuthUI = function() {
   if (navAdminPanel) {
     navAdminPanel.style.display = isAdminMode ? 'block' : 'none';
   }
-};
+};// ================= REAL-TIME WEATHER SYSTEM =================
+const WEATHER_API_KEY = '35f430397daefbc88fde798f645f984c';
+
+async function fetchRealWeather() {
+  // Dashboard weather elements
+  const tempEl = document.querySelector('.weather-temp-display') || document.querySelector('.weather-temperature');
+  const descEl = document.querySelector('.weather-condition-desc') || document.querySelector('.weather-description');
+  const humidityEl = document.querySelector('.weather-humidity-val') || document.querySelector('[data-weather="humidity"]');
+  const windEl = document.querySelector('.weather-wind-val') || document.querySelector('[data-weather="wind"]');
+  const precipEl = document.querySelector('.weather-precip-val') || document.querySelector('[data-weather="precip"]');
+  const locationEl = document.querySelector('.weather-location-badge') || document.querySelector('.location-badge');
+  const soilEl = document.querySelector('.weather-soil-val') || document.querySelector('[data-weather="soil"]');
+  const warningEl = document.querySelector('.weather-alert-box') || document.querySelector('.weather-warning');
+
+  // Step 1: Get user GPS location
+  if (!navigator.geolocation) {
+    console.warn('[AgroShield] Geolocation not supported.');
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+
+      try {
+        // Step 2: Fetch weather from OpenWeatherMap
+        const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.cod !== 200) {
+          console.error('[AgroShield] Weather API Error:', data.message);
+          return;
+        }
+
+        // Step 3: Extract weather data
+        const temp = Math.round(data.main.temp);
+        const humidity = data.main.humidity;
+        const windSpeed = (data.wind.speed * 3.6).toFixed(1); // m/s to km/h
+        const weatherMain = data.weather[0].main;
+        const weatherDesc = data.weather[0].description;
+        const cityName = data.name;
+        const country = data.sys.country;
+
+        // Estimate soil moisture from humidity (simple model)
+        const soilMoisture = Math.min(100, Math.round(humidity * 0.6 + 5));
+
+        // Estimate precipitation chance from weather condition
+        let precipChance = 5;
+        if (weatherMain === 'Rain') precipChance = 85;
+        else if (weatherMain === 'Drizzle') precipChance = 60;
+        else if (weatherMain === 'Clouds') precipChance = 30;
+        else if (weatherMain === 'Thunderstorm') precipChance = 95;
+        else if (weatherMain === 'Snow') precipChance = 70;
+
+        // Format condition description
+        const conditionText = formatWeatherCondition(weatherMain, weatherDesc, humidity, temp);
+
+        // Step 4: Update UI elements
+        if (tempEl) tempEl.textContent = `${temp}°C`;
+        if (descEl) descEl.textContent = conditionText;
+        if (humidityEl) humidityEl.textContent = `${humidity}%`;
+        if (windEl) windEl.textContent = `${windSpeed} km/h`;
+        if (precipEl) precipEl.textContent = `${precipChance}%`;
+        if (locationEl) locationEl.textContent = `${cityName}, ${country}`;
+        if (soilEl) soilEl.textContent = `${soilMoisture}%`;
+
+        // Step 5: Update weather warning banner
+        updateWeatherWarning(warningEl, humidity, temp, weatherMain, cityName);
+
+        console.log(`[AgroShield] Weather updated: ${temp}°C, ${conditionText} — ${cityName}, ${country}`);
+
+      } catch (err) {
+        console.error('[AgroShield] Failed to fetch weather:', err);
+      }
+    },
+    (error) => {
+      console.warn('[AgroShield] Location access denied. Using IP-based fallback...');
+      fetchWeatherByIP();
+    },
+    { timeout: 10000 }
+  );
+}
+
+// Fallback: Fetch weather by IP (no GPS needed)
+async function fetchWeatherByIP() {
+  try {
+    // Get approximate location from IP
+    const ipRes = await fetch('https://ipapi.co/json/');
+    const ipData = await ipRes.json();
+
+    const lat = ipData.latitude;
+    const lon = ipData.longitude;
+
+    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.cod !== 200) return;
+
+    const temp = Math.round(data.main.temp);
+    const humidity = data.main.humidity;
+    const windSpeed = (data.wind.speed * 3.6).toFixed(1);
+    const weatherMain = data.weather[0].main;
+    const weatherDesc = data.weather[0].description;
+    const cityName = data.name;
+    const country = data.sys.country;
+    const soilMoisture = Math.min(100, Math.round(humidity * 0.6 + 5));
+
+    let precipChance = 5;
+    if (weatherMain === 'Rain') precipChance = 85;
+    else if (weatherMain === 'Drizzle') precipChance = 60;
+    else if (weatherMain === 'Clouds') precipChance = 30;
+    else if (weatherMain === 'Thunderstorm') precipChance = 95;
+
+    const conditionText = formatWeatherCondition(weatherMain, weatherDesc, humidity, temp);
+
+    const tempEl = document.querySelector('.weather-temp-display') || document.querySelector('.weather-temperature');
+    const descEl = document.querySelector('.weather-condition-desc') || document.querySelector('.weather-description');
+    const humidityEl = document.querySelector('.weather-humidity-val') || document.querySelector('[data-weather="humidity"]');
+    const windEl = document.querySelector('.weather-wind-val') || document.querySelector('[data-weather="wind"]');
+    const precipEl = document.querySelector('.weather-precip-val') || document.querySelector('[data-weather="precip"]');
+    const locationEl = document.querySelector('.weather-location-badge') || document.querySelector('.location-badge');
+    const soilEl = document.querySelector('.weather-soil-val') || document.querySelector('[data-weather="soil"]');
+    const warningEl = document.querySelector('.weather-alert-box') || document.querySelector('.weather-warning');
+
+    if (tempEl) tempEl.textContent = `${temp}°C`;
+    if (descEl) descEl.textContent = conditionText;
+    if (humidityEl) humidityEl.textContent = `${humidity}%`;
+    if (windEl) windEl.textContent = `${windSpeed} km/h`;
+    if (precipEl) precipEl.textContent = `${precipChance}%`;
+    if (locationEl) locationEl.textContent = `${cityName}, ${country}`;
+    if (soilEl) soilEl.textContent = `${soilMoisture}%`;
+
+    updateWeatherWarning(warningEl, humidity, temp, weatherMain, cityName);
+
+    console.log(`[AgroShield] Weather (IP fallback): ${temp}°C — ${cityName}, ${country}`);
+
+  } catch (err) {
+    console.error('[AgroShield] IP weather fallback failed:', err);
+  }
+}
+
+function formatWeatherCondition(main, desc, humidity, temp) {
+  if (main === 'Clear' && humidity > 60) return 'Sunny & Humid';
+  if (main === 'Clear') return 'Clear & Sunny';
+  if (main === 'Clouds' && humidity > 70) return 'Cloudy & Humid';
+  if (main === 'Clouds') return 'Partly Cloudy';
+  if (main === 'Rain') return 'Rainy';
+  if (main === 'Drizzle') return 'Light Drizzle';
+  if (main === 'Thunderstorm') return 'Thunderstorm';
+  if (main === 'Snow') return 'Snowfall';
+  if (main === 'Mist' || main === 'Fog') return 'Foggy & Misty';
+  if (main === 'Haze') return 'Hazy';
+  return desc.charAt(0).toUpperCase() + desc.slice(1);
+}
+
+function updateWeatherWarning(warningEl, humidity, temp, weatherMain, city) {
+  if (!warningEl) return;
+
+  let warningText = '';
+
+  if (humidity > 80 && (weatherMain === 'Rain' || weatherMain === 'Clouds')) {
+    warningText = `⚠️ <strong>High Humidity Warning:</strong> Conditions in <strong>${city}</strong> are highly favorable for fungal pathogens. Keep a close eye on crops for signs of <strong>Late Blight</strong> and avoid evening overhead irrigation.`;
+  } else if (temp > 38) {
+    warningText = `🌡️ <strong>Heat Stress Alert:</strong> Extreme temperatures detected in <strong>${city}</strong>. Irrigate crops early morning and consider shade netting for sensitive crops.`;
+  } else if (weatherMain === 'Thunderstorm') {
+    warningText = `⛈️ <strong>Storm Warning:</strong> Thunderstorm conditions in <strong>${city}</strong>. Postpone spraying activities and secure farm equipment.`;
+  } else if (humidity > 70) {
+    warningText = `💧 <strong>Moderate Humidity Notice:</strong> Humidity levels in <strong>${city}</strong> may increase disease risk. Monitor crops regularly.`;
+  } else {
+    warningText = `✅ <strong>Favorable Conditions:</strong> Current weather in <strong>${city}</strong> is suitable for normal farming activities.`;
+  }
+
+  warningEl.innerHTML = warningText;
+}
+
+// ================= AUTO-REFRESH WEATHER =================
+// Fetch weather when page loads
+window.addEventListener('DOMContentLoaded', () => {
+  fetchRealWeather();
+  // Refresh every 15 minutes
+  setInterval(fetchRealWeather, 15 * 60 * 1000);
+});
