@@ -1261,3 +1261,120 @@ window.addEventListener('DOMContentLoaded', () => {
   // Refresh every 15 minutes
   setInterval(fetchRealWeather, 15 * 60 * 1000);
 });
+// ================= REAL-TIME WEATHER SYSTEM =================
+const WEATHER_API_KEY = '35f430397daefbc88fde798f645f984c';
+
+async function fetchRealWeather() {
+  if (!navigator.geolocation) {
+    fetchWeatherByIP();
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      await loadWeatherData(lat, lon);
+    },
+    () => {
+      fetchWeatherByIP();
+    },
+    { timeout: 8000 }
+  );
+}
+
+async function fetchWeatherByIP() {
+  try {
+    const ipRes = await fetch('https://ipapi.co/json/');
+    const ipData = await ipRes.json();
+    await loadWeatherData(ipData.latitude, ipData.longitude);
+  } catch (err) {
+    console.error('[AgroShield] IP fallback failed:', err);
+  }
+}
+
+async function loadWeatherData(lat, lon) {
+  try {
+    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.cod !== 200) return;
+
+    const temp        = Math.round(data.main.temp);
+    const humidity    = data.main.humidity;
+    const windKmh     = (data.wind.speed * 3.6).toFixed(1);
+    const weatherMain = data.weather[0].main;
+    const cityName    = data.name;
+    const country     = data.sys.country;
+    const soilMoist   = Math.min(99, Math.round(humidity * 0.6 + 5));
+
+    let precipChance = 5;
+    if (weatherMain === 'Thunderstorm') precipChance = 95;
+    else if (weatherMain === 'Rain')    precipChance = 85;
+    else if (weatherMain === 'Drizzle') precipChance = 60;
+    else if (weatherMain === 'Clouds')  precipChance = 30;
+    else if (weatherMain === 'Snow')    precipChance = 70;
+
+    const conditionText = formatCondition(weatherMain, humidity);
+
+    const tempEl = document.querySelector('.weather-temp-value');
+    if (tempEl) tempEl.textContent = `${temp}°C`;
+
+    const descEl = document.querySelector('.weather-desc');
+    if (descEl) descEl.textContent = conditionText;
+
+    const locEl = document.querySelector('.weather-location');
+    if (locEl) locEl.textContent = `${cityName}, ${country}`;
+
+    const detailValues = document.querySelectorAll('.weather-detail-value');
+    if (detailValues[0]) detailValues[0].textContent = `${humidity}%`;
+    if (detailValues[1]) detailValues[1].textContent = `${soilMoist}%`;
+    if (detailValues[2]) detailValues[2].textContent = `${windKmh} km/h`;
+    if (detailValues[3]) detailValues[3].textContent = `${precipChance}%`;
+
+    const alertBox = document.getElementById('weather-alert-box');
+    if (alertBox) {
+      const advText = alertBox.querySelector('.weather-advice-text');
+      if (advText) {
+        advText.innerHTML = buildWarningText(humidity, temp, weatherMain, cityName);
+      }
+    }
+
+  } catch (err) {
+    console.error('[AgroShield] loadWeatherData error:', err);
+  }
+}
+
+function formatCondition(main, humidity) {
+  if (main === 'Clear')        return humidity > 60 ? 'Sunny & Humid' : 'Clear & Sunny';
+  if (main === 'Clouds')       return humidity > 70 ? 'Cloudy & Humid' : 'Partly Cloudy';
+  if (main === 'Rain')         return 'Rainy';
+  if (main === 'Drizzle')      return 'Light Drizzle';
+  if (main === 'Thunderstorm') return 'Thunderstorm';
+  if (main === 'Snow')         return 'Snowfall';
+  if (main === 'Mist' || main === 'Fog') return 'Foggy & Misty';
+  if (main === 'Haze')         return 'Hazy';
+  return main;
+}
+
+function buildWarningText(humidity, temp, weatherMain, city) {
+  if (humidity > 80 && (weatherMain === 'Rain' || weatherMain === 'Clouds' || weatherMain === 'Drizzle')) {
+    return `<strong>High Humidity Warning:</strong> Conditions in <strong>${city}</strong> are highly favorable for fungal pathogens. Keep a close eye on crops for signs of <strong>Late Blight</strong> and avoid evening overhead irrigation.`;
+  }
+  if (weatherMain === 'Thunderstorm') {
+    return `<strong>Storm Warning:</strong> Thunderstorm in <strong>${city}</strong>. Postpone spraying and secure farm equipment.`;
+  }
+  if (temp > 38) {
+    return `<strong>Heat Stress Alert:</strong> Extreme heat in <strong>${city}</strong> (${temp}°C). Irrigate crops early morning and use shade nets.`;
+  }
+  if (humidity > 70) {
+    return `<strong>Moderate Humidity Notice:</strong> Humidity in <strong>${city}</strong> may increase disease risk. Monitor crops regularly.`;
+  }
+  return `<strong>Favorable Conditions:</strong> Weather in <strong>${city}</strong> is suitable for normal farming activities.`;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  fetchRealWeather();
+  setInterval(fetchRealWeather, 15 * 60 * 1000);
+});
